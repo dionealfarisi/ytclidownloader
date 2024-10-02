@@ -7,6 +7,10 @@ import argparse
 import os
 from rich.console import Console
 
+
+__VERSION__ = "1.1.3"
+__UPDATE__ = "02/10/2024"
+__AUTHOR__ = "dionealfarisi"
 console = Console()
 
 def validate_url(url):
@@ -81,17 +85,19 @@ def start_download(choice, url, path):
 def main():
     parser = argparse.ArgumentParser(
         description="YouTube Downloader CLI",
-        epilog="""Examples of usage:
+        epilog=f"""Examples of usage:
         Download a video:
           yt video https://www.youtube.com/watch?v=example --path /downloads
         Download an audio file:
           yt audio https://www.youtube.com/watch?v=example --path /music
+    \nAuthor: {__AUTHOR__}
         """, 
         formatter_class=argparse.RawTextHelpFormatter
     )
     parser.add_argument('type', choices=['audio', 'video'], help="Select download type: 'audio' (MP3) or 'video' (MP4)")
     parser.add_argument('url', type=validate_url, help="Valid YouTube video URL")
     parser.add_argument('--path', default='.', help="Directory to save the downloaded file (default: current location)")
+    parser.add_argument('--version', action='version', version=f"%(prog)s {__VERSION__} latest update: {__UPDATE__}")
     
     args = parser.parse_args()
 
