@@ -1,5 +1,5 @@
 # YouTube Downloader CLI
-
+![Image](https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQfCeukBziSHXTb3m8_FD2vfwsQf_FQBrrXPw&s)
 YouTube Downloader CLI is a command-line tool to download videos or audio from YouTube using `yt-dlp` and `rich` for progress display.
 
 ## Features
