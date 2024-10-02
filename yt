@@ -1,0 +1,84 @@
+#!/usr/bin/env python3
+
+import re
+import yt_dlp
+import threading
+import argparse
+import os
+from rich.console import Console
+
+console = Console()
+
+def download_video(url, path):
+    try:
+        ydl_opts = {
+            'format': 'bestvideo+bestaudio/best',
+            'outtmpl': os.path.join(path, '%(title)s.%(ext)s'),
+            'noplaylist': True,
+            'progress_hooks': [progress_hook],
+        }
+
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url])
+    except yt_dlp.utils.DownloadError as e:
+        console.print(f"[bold red]An error occurred while downloading: {e}[/bold red]")
+    except Exception as e:
+        console.print(f"[bold red]Unexpected error: {e}[/bold red]")
+
+def download_audio(url, path):
+    try:
+        ydl_opts = {
+            'format': 'bestaudio/best',
+            'outtmpl': os.path.join(path, '%(title)s.%(ext)s'),
+            'noplaylist': True,
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '192',
+            }],
+            'progress_hooks': [progress_hook],
+        }
+
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url])
+    except yt_dlp.utils.DownloadError as e:
+        console.print(f"[bold red]An error occurred while downloading: {e}[/bold red]")
+    except Exception as e:
+        console.print(f"[bold red]Unexpected error: {e}[/bold red]")
+
+def progress_hook(d):
+    if d['status'] == 'downloading':
+        percent_str = re.sub(r'\x1b\[[0-9;]*m', '', d['_percent_str'])
+        percent = float(percent_str.strip('%'))
+        speed = re.sub(r'\x1b\[[0-9;]*m', '', d['_speed_str'])
+        eta = re.sub(r'\x1b\[[0-9;]*m', '', d['_eta_str'])
+        console.print(f"[cyan]Downloading:[/cyan] {percent}% at {speed}, ETA: {eta}", end='\r')
+    if d['status'] == 'finished':
+        console.print("\n[green]Download complete![/green]")
+
+
+def start_download(choice, url, path):
+    console.print(f"[yellow]Starting down {choice} from URL:[/yellow] {url}")
+    if choice == "video":
+        threading.Thread(target=download_video, args=(url, path)).start()
+    elif choice == "audio":
+        threading.Thread(target=download_audio, args=(url, path)).start()
+    else:
+        console.print("[bold red]Invalid selection. Please select 'video' or 'audio'.[/bold red]")
+
+def main():
+    parser = argparse.ArgumentParser(description="YouTube Downloader CLI")
+    parser.add_argument('type', choices=['audio', 'video'], help="Select download type: 'audio' or 'video'")
+    parser.add_argument('url', help="URL of the YouTube video you want to download")
+    parser.add_argument('--path', default='.', help="Storage location (default: current location)")
+    args = parser.parse_args()
+
+    console.print("[bold blue]=== YouTube Downloader ===[/bold blue]")
+    console.print(f"Type: [green]{args.type}[/green]")
+    console.print(f"URL: [yellow]{args.url}[/yellow]")
+    console.print(f"Path: [magenta]{args.path}[/magenta]")
+
+    start_download(args.type, args.url, args.path)
+
+if __name__ == "__main__":
+    main()
