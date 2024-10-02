@@ -9,6 +9,19 @@ from rich.console import Console
 
 console = Console()
 
+def validate_url(url):
+    """
+    Validate if the provided URL is a valid YouTube URL.
+    """
+    youtube_regex = (
+        r'(https?://)?(www\.)?'
+        '(youtube|youtu|youtube-nocookie)\.(com|be)/'
+        '(watch\?v=|embed/|v/|.+\?v=)?([^&=%\?]{11})')
+
+    if not re.match(youtube_regex, url):
+        raise argparse.ArgumentTypeError(f"Invalid YouTube URL: {url}")
+    return url
+
 def download_video(url, path):
     try:
         ydl_opts = {
@@ -56,9 +69,8 @@ def progress_hook(d):
     if d['status'] == 'finished':
         console.print("\n[green]Download complete![/green]")
 
-
 def start_download(choice, url, path):
-    console.print(f"[yellow]Starting down {choice} from URL:[/yellow] {url}")
+    console.print(f"[yellow]Starting {choice} download from URL:[/yellow] {url}")
     if choice == "video":
         threading.Thread(target=download_video, args=(url, path)).start()
     elif choice == "audio":
@@ -67,10 +79,20 @@ def start_download(choice, url, path):
         console.print("[bold red]Invalid selection. Please select 'video' or 'audio'.[/bold red]")
 
 def main():
-    parser = argparse.ArgumentParser(description="YouTube Downloader CLI")
-    parser.add_argument('type', choices=['audio', 'video'], help="Select download type: 'audio' or 'video'")
-    parser.add_argument('url', help="URL of the YouTube video you want to download")
-    parser.add_argument('--path', default='.', help="Storage location (default: current location)")
+    parser = argparse.ArgumentParser(
+        description="YouTube Downloader CLI",
+        epilog="""Examples of usage:
+        Download a video:
+          yt video https://www.youtube.com/watch?v=example --path /downloads
+        Download an audio file:
+          yt audio https://www.youtube.com/watch?v=example --path /music
+        """, 
+        formatter_class=argparse.RawTextHelpFormatter
+    )
+    parser.add_argument('type', choices=['audio', 'video'], help="Select download type: 'audio' (MP3) or 'video' (MP4)")
+    parser.add_argument('url', type=validate_url, help="Valid YouTube video URL")
+    parser.add_argument('--path', default='.', help="Directory to save the downloaded file (default: current location)")
+    
     args = parser.parse_args()
 
     console.print("[bold blue]=== YouTube Downloader ===[/bold blue]")
