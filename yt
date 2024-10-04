@@ -5,11 +5,11 @@ import yt_dlp
 import threading
 import argparse
 import os
+import shutil
 from rich.console import Console
 
-
-__VERSION__ = "1.1.3"
-__UPDATE__ = "02/10/2024"
+__VERSION__ = "1.1.4"
+__UPDATE__ = "04/10/2024"
 __AUTHOR__ = "dionealfarisi"
 console = Console()
 
@@ -26,7 +26,29 @@ def validate_url(url):
         raise argparse.ArgumentTypeError(f"Invalid YouTube URL: {url}")
     return url
 
+def validate_path(path):
+    """
+    Validate if the provided path is a valid directory.
+    """
+    if not os.path.isdir(path):
+        raise argparse.ArgumentTypeError(f"Invalid path: {path}. Please enter a valid directory.")
+    return path
+
+def check_ffmpeg_installed():
+    """
+    Check if FFmpeg is installed on the system.
+    """
+    if not shutil.which("ffmpeg"):
+        console.print("[bold red]Error: FFmpeg is not installed![/bold red]")
+        console.print("[yellow]Please install FFmpeg to enable audio extraction.[/yellow]")
+        raise SystemExit(1)  # Exit the program if FFmpeg is not found
+    else:
+        console.print("[green]FFmpeg is installed.[/green]")
+
 def download_video(url, path):
+    """
+    Download video from YouTube using yt-dlp.
+    """
     try:
         ydl_opts = {
             'format': 'bestvideo+bestaudio/best',
@@ -38,11 +60,14 @@ def download_video(url, path):
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
     except yt_dlp.utils.DownloadError as e:
-        console.print(f"[bold red]An error occurred while downloading: {e}[/bold red]")
+        console.print(f"[bold red]An error occurred while downloading the video: {e}[/bold red]")
     except Exception as e:
         console.print(f"[bold red]Unexpected error: {e}[/bold red]")
 
 def download_audio(url, path):
+    """
+    Download audio from YouTube using yt-dlp.
+    """
     try:
         ydl_opts = {
             'format': 'bestaudio/best',
@@ -59,30 +84,31 @@ def download_audio(url, path):
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
     except yt_dlp.utils.DownloadError as e:
-        console.print(f"[bold red]An error occurred while downloading: {e}[/bold red]")
+        console.print(f"[bold red]An error occurred while downloading the audio: {e}[/bold red]")
     except Exception as e:
         console.print(f"[bold red]Unexpected error: {e}[/bold red]")
 
 def progress_hook(d):
     if d['status'] == 'downloading':
-        percent_str = re.sub(r'\x1b\[[0-9;]*m', '', d['_percent_str'])
+        percent_str = d.get('_percent_str', '0%')
         percent = float(percent_str.strip('%'))
-        speed = re.sub(r'\x1b\[[0-9;]*m', '', d['_speed_str'])
-        eta = re.sub(r'\x1b\[[0-9;]*m', '', d['_eta_str'])
-        console.print(f"[cyan]Downloading:[/cyan] {percent}% at {speed}, ETA: {eta}", end='\r')
+        speed = d.get('_speed_str', '0B/s')
+        eta = d.get('_eta_str', 'N/A')
+        console.print(f"[cyan]Downloading:[/cyan] {percent:.2f}% at {speed}, ETA: {eta}", end='\r')
     if d['status'] == 'finished':
         console.print("\n[green]Download complete![/green]")
 
 def start_download(choice, url, path):
     console.print(f"[yellow]Starting {choice} download from URL:[/yellow] {url}")
     if choice == "video":
-        threading.Thread(target=download_video, args=(url, path)).start()
+        download_video(url, path)
     elif choice == "audio":
-        threading.Thread(target=download_audio, args=(url, path)).start()
+        download_audio(url, path)
     else:
         console.print("[bold red]Invalid selection. Please select 'video' or 'audio'.[/bold red]")
 
 def main():
+    check_ffmpeg_installed() 
     parser = argparse.ArgumentParser(
         description="YouTube Downloader CLI",
         epilog=f"""Examples of usage:
@@ -96,7 +122,7 @@ def main():
     )
     parser.add_argument('type', choices=['audio', 'video'], help="Select download type: 'audio' (MP3) or 'video' (MP4)")
     parser.add_argument('url', type=validate_url, help="Valid YouTube video URL")
-    parser.add_argument('--path', default='.', help="Directory to save the downloaded file (default: current location)")
+    parser.add_argument('--path', type=validate_path, default='.', help="Directory to save the downloaded file (default: current location)")
     parser.add_argument('--version', action='version', version=f"%(prog)s {__VERSION__} latest update: {__UPDATE__}")
     
     args = parser.parse_args()
