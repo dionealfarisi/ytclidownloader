@@ -41,9 +41,7 @@ def check_ffmpeg_installed():
     if not shutil.which("ffmpeg"):
         console.print("[bold red]Error: FFmpeg is not installed![/bold red]")
         console.print("[yellow]Please install FFmpeg to enable audio extraction.[/yellow]")
-        raise SystemExit(1)  # Exit the program if FFmpeg is not found
-    else:
-        console.print("[green]FFmpeg is installed.[/green]")
+        raise SystemExit(1)
 
 def download_video(url, path):
     """
@@ -90,13 +88,27 @@ def download_audio(url, path):
 
 def progress_hook(d):
     if d['status'] == 'downloading':
-        percent_str = d.get('_percent_str', '0%')
-        percent = float(percent_str.strip('%'))
-        speed = d.get('_speed_str', '0B/s')
-        eta = d.get('_eta_str', 'N/A')
-        console.print(f"[cyan]Downloading:[/cyan] {percent:.2f}% at {speed}, ETA: {eta}", end='\r')
+        percent_str = re.sub(r'\x1b\[[0-9;]*m', '', d['_percent_str']).strip()
+        try:
+            percent = float(percent_str.strip('%'))
+        except ValueError as e:
+            console.print(f"[bold red]Error converting percentage to float: {e}[/bold red]")
+            return
+
+        speed = re.sub(r'\x1b\[[0-9;]*m', '', d['_speed_str']).strip()
+        eta = re.sub(r'\x1b\[[0-9;]*m', '', d['_eta_str']).strip()
+
+        console.print(f"[cyan]Downloading:[/cyan] {percent}% at {speed}, ETA: {eta}", end='\r')
+        
     if d['status'] == 'finished':
         console.print("\n[green]Download complete![/green]")
+
+def threaded_download(choice, url, path):
+    """
+    Start the download in a new thread.
+    """
+    download_thread = threading.Thread(target=start_download, args=(choice, url, path))
+    download_thread.start()
 
 def start_download(choice, url, path):
     console.print(f"[yellow]Starting {choice} download from URL:[/yellow] {url}")
@@ -108,7 +120,8 @@ def start_download(choice, url, path):
         console.print("[bold red]Invalid selection. Please select 'video' or 'audio'.[/bold red]")
 
 def main():
-    check_ffmpeg_installed() 
+    check_ffmpeg_installed()
+
     parser = argparse.ArgumentParser(
         description="YouTube Downloader CLI",
         epilog=f"""Examples of usage:
@@ -132,7 +145,8 @@ def main():
     console.print(f"URL: [yellow]{args.url}[/yellow]")
     console.print(f"Path: [magenta]{args.path}[/magenta]")
 
-    start_download(args.type, args.url, args.path)
+    # Use threading for download
+    threaded_download(args.type, args.url, args.path)
 
 if __name__ == "__main__":
     main()
