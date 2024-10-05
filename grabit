@@ -1,0 +1,182 @@
+#!/usr/bin/env python3
+
+import re
+import yt_dlp
+import threading
+import argparse
+import os
+import shutil
+import instaloader
+from rich.console import Console
+
+__VERSION__ = "1.2.0"
+__UPDATE__ = "04/10/2024"
+__AUTHOR__ = "dionealfarisi"
+console = Console()
+
+import re
+import argparse
+
+def validate_url(url):
+    """
+    Validate if the provided URL is a valid YouTube or Instagram URL.
+    """
+    youtube_regex = (
+        r'(https?://)?(www\.)?'
+        '(youtube|youtu|youtube-nocookie)\.(com|be)/'
+        '(watch\?v=|embed/|v/|.+\?v=)?([^&=%\?]{11})')
+
+    instagram_regex = (
+        r'(https?://)?(www\.)?instagram\.com/'
+        r'(p/([a-zA-Z0-9_-]+)|reel/([a-zA-Z0-9_-]+))')
+
+    if re.match(youtube_regex, url):
+        return 'youtube', url
+    elif re.match(instagram_regex, url):
+        return 'instagram', url
+    else:
+        raise argparse.ArgumentTypeError(f"Invalid URL: {url}. Only YouTube and Instagram URLs are supported.")
+
+
+def validate_path(path):
+    """
+    Validate if the provided path is a valid directory.
+    """
+    if not os.path.isdir(path):
+        raise argparse.ArgumentTypeError(f"Invalid path: {path}. Please enter a valid directory.")
+    return path
+
+def check_ffmpeg_installed():
+    """
+    Check if FFmpeg is installed on the system.
+    """
+    if not shutil.which("ffmpeg"):
+        console.print("[bold red]Error: FFmpeg is not installed![/bold red]")
+        console.print("[yellow]Please install FFmpeg to enable audio extraction.[/yellow]")
+        raise SystemExit(1)
+
+def download_instagram_video(url, path):
+    """
+    Download video from Instagram using instaloader.
+    """
+    try:
+        L = instaloader.Instaloader()
+        shortcode = url.split('/')[-2]
+        post = instaloader.Post.from_shortcode(L.context, shortcode)
+        L.download_post(post, target=path)
+        console.print(f"[green]Instagram video successfully downloaded to: {path}[/green]")
+    except Exception as e:
+        console.print(f"[bold red]An error occurred while downloading the Instagram video: {e}[/bold red]")
+
+def download_video(url, path):
+    """
+    Download video from YouTube using yt-dlp.
+    """
+    try:
+        ydl_opts = {
+            'format': 'bestvideo+bestaudio/best',
+            'outtmpl': os.path.join(path, '%(title)s.%(ext)s'),
+            'noplaylist': True,
+            'progress_hooks': [progress_hook],
+        }
+
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url])
+    except yt_dlp.utils.DownloadError as e:
+        console.print(f"[bold red]An error occurred while downloading the YouTube video: {e}[/bold red]")
+    except Exception as e:
+        console.print(f"[bold red]Unexpected error: {e}[/bold red]")
+
+def download_audio(url, path):
+    """
+    Download audio from YouTube using yt-dlp.
+    """
+    try:
+        ydl_opts = {
+            'format': 'bestaudio/best',
+            'outtmpl': os.path.join(path, '%(title)s.%(ext)s'),
+            'noplaylist': True,
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '192',
+            }],
+            'progress_hooks': [progress_hook],
+        }
+
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url])
+    except yt_dlp.utils.DownloadError as e:
+        console.print(f"[bold red]An error occurred while downloading the YouTube audio: {e}[/bold red]")
+    except Exception as e:
+        console.print(f"[bold red]Unexpected error: {e}[/bold red]")
+
+def progress_hook(d):
+    if d['status'] == 'downloading':
+        percent_str = re.sub(r'\x1b\[[0-9;]*m', '', d['_percent_str']).strip()
+        try:
+            percent = float(percent_str.strip('%'))
+        except ValueError as e:
+            console.print(f"[bold red]Error converting percentage to float: {e}[/bold red]")
+            return
+
+        speed = re.sub(r'\x1b\[[0-9;]*m', '', d['_speed_str']).strip()
+        eta = re.sub(r'\x1b\[[0-9;]*m', '', d['_eta_str']).strip()
+
+        console.print(f"[cyan]Downloading:[/cyan] {percent}% at {speed}, ETA: {eta}", end='\r')
+        
+    if d['status'] == 'finished':
+        console.print("\n[green]Download complete![/green]")
+
+def threaded_download(choice, platform, url, path):
+    """
+    Start the download in a new thread.
+    """
+    download_thread = threading.Thread(target=start_download, args=(choice, platform, url, path))
+    download_thread.start()
+
+def start_download(choice, platform, url, path):
+    console.print(f"[yellow]Starting {platform} {choice} download from URL:[/yellow] {url}")
+    if platform == 'youtube':
+        if choice == "video":
+            download_video(url, path)
+        elif choice == "audio":
+            download_audio(url, path)
+    elif platform == 'instagram':
+        download_instagram_video(url, path)
+    else:
+        console.print("[bold red]Invalid platform. Please select 'youtube' or 'instagram'.[/bold red]")
+
+def main():
+    check_ffmpeg_installed()
+
+    parser = argparse.ArgumentParser(
+        description="YouTube & Instagram Downloader CLI",
+        epilog=f"""Examples of usage:
+        Download a YouTube video:
+          yt video https://www.youtube.com/watch?v=example --path /downloads
+        Download an Instagram video:
+          yt video https://www.instagram.com/p/example --path /videos
+    \nAuthor: {__AUTHOR__}
+        """, 
+        formatter_class=argparse.RawTextHelpFormatter
+    )
+    parser.add_argument('type', choices=['audio', 'video'], help="Select download type: 'audio' (MP3) or 'video' (MP4)")
+    parser.add_argument('url', help="Valid YouTube or Instagram URL", type=validate_url)
+    parser.add_argument('--path', type=validate_path, default='.', help="Directory to save the downloaded file (default: current location)")
+    parser.add_argument('--version', action='version', version=f"%(prog)s {__VERSION__} latest update: {__UPDATE__}")
+    
+    args = parser.parse_args()
+
+    platform, url = args.url  # Extract platform (YouTube or Instagram) and URL
+    console.print("[bold blue]=== Downloader ===[/bold blue]")
+    console.print(f"Platform: [green]{platform}[/green]")
+    console.print(f"Type: [green]{args.type}[/green]")
+    console.print(f"URL: [yellow]{url}[/yellow]")
+    console.print(f"Path: [magenta]{args.path}[/magenta]")
+
+    # Use threading for download
+    threaded_download(args.type, platform, url, args.path)
+
+if __name__ == "__main__":
+    main()
