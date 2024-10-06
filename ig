@@ -5,12 +5,12 @@ import argparse
 import os
 from rich.console import Console
 
-__VERSION__ = "1.0.0"
-__UPDATE__ = "05/10/2024"
+__VERSION__ = "1.0.2"
+__UPDATE__ = "06/10/2024"
 __AUTHOR__ = "dionealfarisi"
 console = Console()
 
-def download_instagram_post(url, path, session_file):
+def download_instagram_post(url, path, username, session_file):
     """
     Download Instagram post using Instaloader with session file.
     """
@@ -20,7 +20,7 @@ def download_instagram_post(url, path, session_file):
         # Load session
         if os.path.exists(session_file):
             console.print(f"[yellow]Loading session from {session_file}[/yellow]")
-            L.load_session_from_file(session_file)
+            L.load_session_from_file(username, session_file)
         else:
             console.print(f"[bold red]Session file not found: {session_file}[/bold red]")
             return
@@ -39,7 +39,7 @@ def download_instagram_post(url, path, session_file):
         L.download_post(post, target=path)
         console.print("[green]Download complete![/green]")
     except Exception as e:
-        console.print(f"[bold red]An error occurred: {e}[/bold red]")
+        console.print(f"[bold red]An error occurred: {e}[/bold red}")
 
 def validate_path(path):
     """
@@ -54,7 +54,7 @@ def main():
         description="Instagram Post Downloader CLI",
         epilog=f"""Examples of usage:
         Download an Instagram post:
-          ig https://www.instagram.com/p/shortcode/ --path /downloads --session session-file
+          ig https://www.instagram.com/p/shortcode/ --path /downloads --session session-file --username your_username
     \nAuthor: {__AUTHOR__}
         """,
         formatter_class=argparse.RawTextHelpFormatter
@@ -62,6 +62,7 @@ def main():
     parser.add_argument('url', help="Valid Instagram post URL")
     parser.add_argument('--path', type=validate_path, default='.', help="Directory to save the downloaded post (default: current location)")
     parser.add_argument('--session', default='session', help="Session file (default: 'session')")
+    parser.add_argument('--username', required=True, help="Instagram username associated with the session file")
     parser.add_argument('--version', action='version', version=f"%(prog)s {__VERSION__} latest update: {__UPDATE__}")
 
     args = parser.parse_args()
@@ -70,8 +71,9 @@ def main():
     console.print(f"URL: [yellow]{args.url}[/yellow]")
     console.print(f"Path: [magenta]{args.path}[/magenta]")
     console.print(f"Session file: [cyan]{args.session}[/cyan]")
+    console.print(f"Username: [cyan]{args.username}[/cyan]")
 
-    download_instagram_post(args.url, args.path, args.session)
+    download_instagram_post(args.url, args.path, args.username, args.session)
 
 if __name__ == "__main__":
     main()
